@@ -1,0 +1,9 @@
+asyncio
+httpx
+logging
+pydub
+pyaudio
+mirai
+graiax-silkcoder
+audio-separator
+fastapi
