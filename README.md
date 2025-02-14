@@ -8,17 +8,17 @@
 或查看详细的[插件安装说明](https://github.com/RockChinQ/QChatGPT/wiki/5-%E6%8F%92%E4%BB%B6%E4%BD%BF%E7%94%A8)
 
 ## 使用  
-需要先部署[RVC变声器项目](https://github.com/RVC-Project/Retrieval-based-Voice-Conversion-WebUI)，这里不做介绍  
+1、需要先部署[RVC变声器项目](https://github.com/RVC-Project/Retrieval-based-Voice-Conversion-WebUI)，这里不做介绍  
 
-将"rvc_fastapi.py"和"开启接口服务.bat"文件放到RVC项目的主目录下，使用前需要先双击打开"开启接口服务.bat"文件  
+2、将"rvc_fastapi.py"和"开启接口服务.bat"文件放到RVC项目的主目录下，使用前需要先双击打开"开启接口服务.bat"文件  
 
-需要下载安装ffmpeg   
+3、需要下载安装ffmpeg   
 
-前往https://www.alapi.cn/  进行注册（截至上传时是免费的）
+4、前往https://www.alapi.cn/  进行注册（截至上传时是免费的）
 
-在token管理中点击Copy复制Token
+   在token管理中点击Copy复制Token
 
-在本插件文件夹下main.py文件中找到这行，并替换成你获取到的token（不要弄丢引号）
+   在本插件文件夹下main.py文件中找到这行，并替换成你获取到的token（不要弄丢引号）
 
 ```
 token = 'YOURTOKEN'  # 请将这里的'YOUR_TOKEN'替换为你实际获取的token
@@ -30,15 +30,15 @@ RVC_logs_path = r"F:\RVC\RVC1006Nvidia\logs"  # 请将这里的"F:\RVC\RVC1006Nv
 
 只能获取网易云音乐上有的音乐  
 
-tmp文件夹下为UVR的模型文件，文件大小较大，下载较慢请耐心等待，在首次使用时也会自动下载，但需要魔法  
+5、tmp文件夹下为UVR的模型文件，文件大小较大，下载较慢请耐心等待，在首次使用时也会自动下载，但需要魔法  
 
 ## 注意
 
-请检查RVC项目中"\assets\weights"中的模型文件名称xxx.pth和".\logs\xxx\added_abcdefg1234.index"中xxx的名称相同且index文件必须放在".\logs\xxx\"目录下  
+1、请检查RVC项目中"\assets\weights"中的模型文件名称xxx.pth和".\logs\xxx\added_abcdefg1234.index"中xxx的名称相同且index文件必须放在".\logs\xxx\"目录下  
 
-变声前需要用UVR模型对音频去伴奏和混响，依赖电脑性能，速度过慢或爆显存可以适当修改main.py中的batch_size大小，本人3070 8G显存 现在的batch_size大小刚好合适，大家可以做参考去调节。  
+2、变声前需要用UVR模型对音频去伴奏和混响，依赖电脑性能，速度过慢或爆显存可以适当修改main.py中的batch_size大小，本人3070 8G显存 现在的batch_size大小刚好合适，大家可以做参考去调节。  
 
-去伴奏过程慢调节new_mdx_params中的batch_size。去和声或去混响过程慢调节new_vr_params中的batch_size
+   去伴奏过程慢调节new_mdx_params中的batch_size。去和声或去混响过程慢调节new_vr_params中的batch_size
 ```
 new_mdx_params = {"hop_length": 1024, "segment_size": 256, "overlap": 8, "batch_size": 4, "enable_denoise": False}
 new_vr_params = {"batch_size": 4, "window_size": 512, "aggression": 5, "enable_tta": False, "enable_post_process": False, "post_process_threshold": 0.2, "high_end_process": False}
