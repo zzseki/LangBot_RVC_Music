@@ -20,7 +20,7 @@ from graiax import silkcoder
 
 token = 'YOURTOKEN'  # 请将这里的'YOUR_TOKEN'替换为你实际获取的token
 cookie = "YOUR_COOKIE"  # 请将这里的'YOUR_COOKIE'替换为你实际获取的cookie
-RVC_logs_path = "F:\RVC\RVC1006Nvidia\logs"  # 请将这里的"F:\RVC\RVC1006Nvidia\logs"替换为你部署的RVC项目的logs文件夹的路径
+RVC_logs_path = r"F:\RVC\RVC1006Nvidia\logs"  # 请将这里的"F:\RVC\RVC1006Nvidia\logs"替换为你部署的RVC项目的logs文件夹的路径
 
 new_mdx_params = {"hop_length": 1024, "segment_size": 256, "overlap": 8, "batch_size": 4, "enable_denoise": False}
 new_vr_params = {"batch_size": 4, "window_size": 512, "aggression": 5, "enable_tta": False, "enable_post_process": False, "post_process_threshold": 0.2, "high_end_process": False}
