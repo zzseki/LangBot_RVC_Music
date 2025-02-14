@@ -25,6 +25,7 @@ RVC_logs_path = "F:\RVC\RVC1006Nvidia\logs"  # 请将这里的"F:\RVC\RVC1006Nvi
 new_mdx_params = {"hop_length": 1024, "segment_size": 256, "overlap": 8, "batch_size": 8, "enable_denoise": False}
 new_vr_params = {"batch_size": 8, "window_size": 512, "aggression": 5, "enable_tta": False, "enable_post_process": False, "post_process_threshold": 0.2, "high_end_process": False}
 
+
 # 注册插件
 @register(name="RVC_Music", description="RVC翻唱音乐", version="0.1", author="zzseki")
 class RVC_Music(BasePlugin):
@@ -49,176 +50,100 @@ class RVC_Music(BasePlugin):
                 # 确保目录存在
                 if not os.path.exists(dir_path):
                     os.makedirs(dir_path)
-                if os.path.exists(wav_path):
-                    await ctx.event.query.adapter.reply_message(ctx.event.query.message_event, [(f"正在学习 {music}......")], False)
-                    try:
-                        banzou_path, hesheng_path = self.UVR5(music)
-                        if not self.is_pcm_s16le(banzou_path):
-                            print(f"伴奏 不是 16 位 PCM 格式，正在转换...")
-                            output_path = os.path.splitext(banzou_path)[0] + "_16bit.wav"
-                            self.convert_to_pcm_s16le(banzou_path, output_path)
-                        if not self.is_pcm_s16le(hesheng_path):
-                            print(f"和声 不是 16 位 PCM 格式，正在转换...")
-                            output_path = os.path.splitext(hesheng_path)[0] + "_16bit.wav"
-                            self.convert_to_pcm_s16le(hesheng_path, output_path)
-                        music_path = os.path.join(dir_path, f'{music}_(Vocals)_model_bs_roformer_ep_368_sdr_12_(Vocals)_5_HP-Karaoke-UVR_(No Reverb)_UVR-DeEcho-DeReverb.wav')
-                        gansheng_path = self.send_request(model_name, music_path, music, int(f0up))
-                        if not self.is_pcm_s16le(gansheng_path):
-                            print(f"干声 不是 16 位 PCM 格式，正在转换...")
-                            output_path = os.path.splitext(gansheng_path)[0] + "_16bit.wav"
-                            self.convert_to_pcm_s16le(gansheng_path, output_path)
-                        # 加载干声
-                        dry_vocals = AudioSegment.from_wav(gansheng_path)
-                        dry_vocals = dry_vocals + 3
+                id, artists, music_name = self.get_music_id(music)
+                if id:
+                    msg, url = self.get_music(id)
+                    if msg != "success":
+                        self.ap.logger.info(f"{music_name} {artists}", msg)
+                        id, artists, music_name = self.get_music_id(music, 1)
+                        if id:
+                            msg, url = self.get_music(id)
+                    if url:
+                        music_name = music_name.replace('/', '&')
+                        music_name = music_name.replace('"', '_')
+                        music_name = music_name.replace("'", ' ')
+                        music_name = music_name.replace(":", ' ')
+                        music_name = music_name.replace("：", ' ')
+                        artists = artists.replace('/', '&')
+                        wav_path = self.download_audio(url, music_name, artists)
+                        await ctx.event.query.adapter.reply_message(ctx.event.query.message_event, [(f"正在学习 {music_name} {artists}......")], False)
+                        try:
+                            banzou_path, hesheng_path = self.UVR5(f"{music_name} {artists}")
+                            if not self.is_pcm_s16le(banzou_path):
+                                print(f"伴奏 不是 16 位 PCM 格式，正在转换...")
+                                output_path = os.path.splitext(banzou_path)[0] + "_16bit.wav"
+                                self.convert_to_pcm_s16le(banzou_path, output_path)
+                            if not self.is_pcm_s16le(hesheng_path):
+                                print(f"和声 不是 16 位 PCM 格式，正在转换...")
+                                output_path = os.path.splitext(hesheng_path)[0] + "_16bit.wav"
+                                self.convert_to_pcm_s16le(hesheng_path, output_path)
+                            dir_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "music")
+                            music_path = os.path.join(dir_path, f"{music_name} {artists}_(Vocals)_model_bs_roformer_ep_368_sdr_12_(Vocals)_5_HP-Karaoke-UVR_(No Reverb)_UVR-DeEcho-DeReverb.wav")
+                            gansheng_path = self.send_request(model_name, music_path, f"{music_name} {artists}", int(f0up))
+                            if not self.is_pcm_s16le(gansheng_path):
+                                print(f"干声 不是 16 位 PCM 格式，正在转换...")
+                                output_path = os.path.splitext(gansheng_path)[0] + "_16bit.wav"
+                                self.convert_to_pcm_s16le(gansheng_path, output_path)
+                            # 加载干声
+                            dry_vocals = AudioSegment.from_wav(gansheng_path)
+                            dry_vocals = dry_vocals + 3
 
-                        # 保存临时干声音频
-                        dry_vocals.export(os.path.join(dir_path, f'{music} dry_vocals_temp.wav'), format="wav")
-                        # 使用 ffmpeg 为干声增加混响效果
-                        subprocess.call([
-                            'ffmpeg', '-i', os.path.join(dir_path, f'{music} dry_vocals_temp.wav'),
-                            '-filter_complex', 'aecho=0.5:0.7:60:0.2',  # 混响参数
-                            os.path.join(dir_path, f'{music} dry_vocals_with_reverb.wav')
-                        ])
-                        # 衰减量：第一个参数（0.8）控制输入信号的衰减，通常设置得低一点会减少混响强度。
-                        # 回声衰减：第二个参数（0.88）控制回声信号的衰减，增大这个值可以减少混响的明显程度。
-                        # 延迟时间：第三个参数（60）是回声的延迟时间，可以根据需要保持不变或进行微调。
-                        # 反馈量：第四个参数（0.4）控制反馈强度，降低这个值会减弱混响效果。
+                            # 保存临时干声音频
+                            dry_vocals.export(os.path.join(dir_path, f'{music_name} {artists} dry_vocals_temp.wav'), format="wav")
 
-                        # 加载处理后的干声
-                        reverb_vocals = AudioSegment.from_wav(os.path.join(dir_path, f'{music} dry_vocals_with_reverb.wav'))
+                            # 使用 ffmpeg 为干声增加混响效果
+                            subprocess.call([
+                                'ffmpeg', '-i', os.path.join(dir_path, f'{music_name} {artists} dry_vocals_temp.wav'),
+                                '-filter_complex', 'aecho=0.5:0.7:60:0.2',  # 混响参数
+                                os.path.join(dir_path, f'{music_name} {artists} dry_vocals_with_reverb.wav')
+                            ])
+                            # 衰减量：第一个参数（0.8）控制输入信号的衰减，通常设置得低一点会减少混响强度。
+                            # 回声衰减：第二个参数（0.88）控制回声信号的衰减，增大这个值可以减少混响的明显程度。
+                            # 延迟时间：第三个参数（60）是回声的延迟时间，可以根据需要保持不变或进行微调。
+                            # 反馈量：第四个参数（0.4）控制反馈强度，降低这个值会减弱混响效果。
 
-                        # 加载伴奏和和声
-                        accompaniment = AudioSegment.from_wav(banzou_path)
-                        harmony = AudioSegment.from_wav(hesheng_path)
+                            # 加载处理后的干声
+                            reverb_vocals = AudioSegment.from_wav(os.path.join(dir_path, f'{music_name} {artists} dry_vocals_with_reverb.wav'))
 
-                        # 合并音轨
-                        combined = accompaniment.overlay(harmony).overlay(reverb_vocals)
-                        RVC_Music_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "RVC_Music")
-                        output_file_path = os.path.join(RVC_Music_path, f"{music}_{model_name}.wav")
-                        # 导出最终合成的歌曲
-                        combined.export(output_file_path, format="wav")
-                        if not self.is_pcm_s16le(output_file_path):
-                            print(f"伴奏 不是 16 位 PCM 格式，正在转换...")
-                            output_path = os.path.splitext(output_file_path)[0] + "_16bit.wav"
-                            self.convert_to_pcm_s16le(output_file_path, output_path)
+                            # 加载伴奏和和声
+                            accompaniment = AudioSegment.from_wav(banzou_path)
+                            harmony = AudioSegment.from_wav(hesheng_path)
 
-                        silk_path = self.convert_to_silk(model_name, output_file_path, music)
-                        ctx.add_return("reply", [Voice(path=str(silk_path))])
-                        # 删除临时文件
-                        os.remove(os.path.join(dir_path, f'{music} dry_vocals_temp.wav'))
-                        os.remove(os.path.join(dir_path, f'{music} dry_vocals_with_reverb.wav'))
-                        os.remove(gansheng_path)
-                        os.remove(hesheng_path)
-                        os.remove(banzou_path)
-                        os.remove(os.path.join(dir_path, f'{music}_(Vocals)_model_bs_roformer_ep_368_sdr_12.wav'))
-                        os.remove(os.path.join(dir_path,
-                                               f'{music}_(Vocals)_model_bs_roformer_ep_368_sdr_12_(Vocals)_5_HP-Karaoke-UVR.wav'))
-                        os.remove(os.path.join(dir_path,
-                                               f'{music}_(Vocals)_model_bs_roformer_ep_368_sdr_12_(Vocals)_5_HP-Karaoke-UVR_(No Reverb)_UVR-DeEcho-DeReverb.wav'))
-                        os.remove(os.path.join(dir_path,
-                                               f'{music}_(Vocals)_model_bs_roformer_ep_368_sdr_12_(Vocals)_5_HP-Karaoke-UVR_(Reverb)_UVR-DeEcho-DeReverb.wav'))
-                        #os.remove(silk_path)
-                        os.remove(wav_path)
-                        os.remove(output_file_path)
-                        ctx.prevent_default()
-                    except:
-                        await ctx.event.query.adapter.reply_message(ctx.event.query.message_event, [(f"出错啦！ •᷄ࡇ•᷅")], False)
-                        ctx.prevent_default()
+                            # 合并音轨
+                            combined = accompaniment.overlay(harmony).overlay(reverb_vocals)
+                            RVC_Music_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "RVC_Music")
+                            output_file_path = os.path.join(RVC_Music_path, f"{music_name} {artists}_{model_name}.wav")
+                            # 导出最终合成的歌曲
+                            combined.export(output_file_path, format="wav")
+                            if not self.is_pcm_s16le(output_file_path):
+                                print(f"伴奏 不是 16 位 PCM 格式，正在转换...")
+                                output_path = os.path.splitext(output_file_path)[0] + "_16bit.wav"
+                                self.convert_to_pcm_s16le(output_file_path, output_path)
+                            silk_path = self.convert_to_silk(model_name, output_file_path, f"{music_name} {artists}")
+                            ctx.add_return("reply", [Voice(path=str(silk_path))])
+                            # 删除临时文件
+                            os.remove(os.path.join(dir_path, f'{music_name} {artists} dry_vocals_temp.wav'))
+                            os.remove(os.path.join(dir_path, f'{music_name} {artists} dry_vocals_with_reverb.wav'))
+                            os.remove(gansheng_path)
+                            os.remove(hesheng_path)
+                            os.remove(banzou_path)
+                            os.remove(os.path.join(dir_path,
+                                                   fr"{music_name} {artists}_(Vocals)_model_bs_roformer_ep_368_sdr_12.wav"))
+                            os.remove(os.path.join(dir_path,
+                                                   fr"{music_name} {artists}_(Vocals)_model_bs_roformer_ep_368_sdr_12_(Vocals)_5_HP-Karaoke-UVR.wav"))
+                            os.remove(os.path.join(dir_path,
+                                                   fr"{music_name} {artists}_(Vocals)_model_bs_roformer_ep_368_sdr_12_(Vocals)_5_HP-Karaoke-UVR_(No Reverb)_UVR-DeEcho-DeReverb.wav"))
+                            os.remove(os.path.join(dir_path,
+                                                   fr"{music_name} {artists}_(Vocals)_model_bs_roformer_ep_368_sdr_12_(Vocals)_5_HP-Karaoke-UVR_(Reverb)_UVR-DeEcho-DeReverb.wav"))
+                            #os.remove(silk_path)
+                            os.remove(wav_path)
+                            os.remove(output_file_path)
+                            ctx.prevent_default()
+                        except:
+                            await ctx.event.query.adapter.reply_message(ctx.event.query.message_event, [(f"出错啦！ •᷄ࡇ•᷅")], False)
+                            ctx.prevent_default()
                 else:
-                    id, artists, music_name = self.get_music_id(music)
-                    if id:
-                        msg, url = self.get_music(id)
-                        if msg != "success":
-                            self.ap.logger.info(f"{music_name} {artists}", msg)
-                            id, artists, music_name = self.get_music_id(music, 1)
-                            if id:
-                                msg, url = self.get_music(id)
-                        if url:
-                            music_name = music_name.replace('/', '&')
-                            music_name = music_name.replace('"', '_')
-                            music_name = music_name.replace("'", ' ')
-                            music_name = music_name.replace(":", ' ')
-                            music_name = music_name.replace("：", ' ')
-                            artists = artists.replace('/', '&')
-                            wav_path = self.download_audio(url, music_name, artists)
-                            await ctx.event.query.adapter.reply_message(ctx.event.query.message_event, [(f"正在学习 {music_name} {artists}......")], False)
-                            try:
-                                banzou_path, hesheng_path = self.UVR5(f"{music_name} {artists}")
-                                if not self.is_pcm_s16le(banzou_path):
-                                    print(f"伴奏 不是 16 位 PCM 格式，正在转换...")
-                                    output_path = os.path.splitext(banzou_path)[0] + "_16bit.wav"
-                                    self.convert_to_pcm_s16le(banzou_path, output_path)
-                                if not self.is_pcm_s16le(hesheng_path):
-                                    print(f"和声 不是 16 位 PCM 格式，正在转换...")
-                                    output_path = os.path.splitext(hesheng_path)[0] + "_16bit.wav"
-                                    self.convert_to_pcm_s16le(hesheng_path, output_path)
-                                dir_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "music")
-                                music_path = os.path.join(dir_path, f"{music_name} {artists}_(Vocals)_model_bs_roformer_ep_368_sdr_12_(Vocals)_5_HP-Karaoke-UVR_(No Reverb)_UVR-DeEcho-DeReverb.wav")
-                                gansheng_path = self.send_request(model_name, music_path, f"{music_name} {artists}", int(f0up))
-                                if not self.is_pcm_s16le(gansheng_path):
-                                    print(f"干声 不是 16 位 PCM 格式，正在转换...")
-                                    output_path = os.path.splitext(gansheng_path)[0] + "_16bit.wav"
-                                    self.convert_to_pcm_s16le(gansheng_path, output_path)
-                                # 加载干声
-                                dry_vocals = AudioSegment.from_wav(gansheng_path)
-                                dry_vocals = dry_vocals + 3
-
-                                # 保存临时干声音频
-                                dry_vocals.export(os.path.join(dir_path, f'{music_name} {artists} dry_vocals_temp.wav'), format="wav")
-
-                                # 使用 ffmpeg 为干声增加混响效果
-                                subprocess.call([
-                                    'ffmpeg', '-i', os.path.join(dir_path, f'{music_name} {artists} dry_vocals_temp.wav'),
-                                    '-filter_complex', 'aecho=0.5:0.7:60:0.2',  # 混响参数
-                                    os.path.join(dir_path, f'{music_name} {artists} dry_vocals_with_reverb.wav')
-                                ])
-                                # 衰减量：第一个参数（0.8）控制输入信号的衰减，通常设置得低一点会减少混响强度。
-                                # 回声衰减：第二个参数（0.88）控制回声信号的衰减，增大这个值可以减少混响的明显程度。
-                                # 延迟时间：第三个参数（60）是回声的延迟时间，可以根据需要保持不变或进行微调。
-                                # 反馈量：第四个参数（0.4）控制反馈强度，降低这个值会减弱混响效果。
-
-                                # 加载处理后的干声
-                                reverb_vocals = AudioSegment.from_wav(os.path.join(dir_path, f'{music_name} {artists} dry_vocals_with_reverb.wav'))
-
-                                # 加载伴奏和和声
-                                accompaniment = AudioSegment.from_wav(banzou_path)
-                                harmony = AudioSegment.from_wav(hesheng_path)
-
-                                # 合并音轨
-                                combined = accompaniment.overlay(harmony).overlay(reverb_vocals)
-                                RVC_Music_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "RVC_Music")
-                                output_file_path = os.path.join(RVC_Music_path, f"{music_name} {artists}_{model_name}.wav")
-                                # 导出最终合成的歌曲
-                                combined.export(output_file_path, format="wav")
-                                if not self.is_pcm_s16le(output_file_path):
-                                    print(f"伴奏 不是 16 位 PCM 格式，正在转换...")
-                                    output_path = os.path.splitext(output_file_path)[0] + "_16bit.wav"
-                                    self.convert_to_pcm_s16le(output_file_path, output_path)
-                                silk_path = self.convert_to_silk(model_name, output_file_path, f"{music_name} {artists}")
-                                ctx.add_return("reply", [Voice(path=str(silk_path))])
-                                # 删除临时文件
-                                os.remove(os.path.join(dir_path, f'{music_name} {artists} dry_vocals_temp.wav'))
-                                os.remove(os.path.join(dir_path, f'{music_name} {artists} dry_vocals_with_reverb.wav'))
-                                os.remove(gansheng_path)
-                                os.remove(hesheng_path)
-                                os.remove(banzou_path)
-                                os.remove(os.path.join(dir_path,
-                                                       fr"{music_name} {artists}_(Vocals)_model_bs_roformer_ep_368_sdr_12.wav"))
-                                os.remove(os.path.join(dir_path,
-                                                       fr"{music_name} {artists}_(Vocals)_model_bs_roformer_ep_368_sdr_12_(Vocals)_5_HP-Karaoke-UVR.wav"))
-                                os.remove(os.path.join(dir_path,
-                                                       fr"{music_name} {artists}_(Vocals)_model_bs_roformer_ep_368_sdr_12_(Vocals)_5_HP-Karaoke-UVR_(No Reverb)_UVR-DeEcho-DeReverb.wav"))
-                                os.remove(os.path.join(dir_path,
-                                                       fr"{music_name} {artists}_(Vocals)_model_bs_roformer_ep_368_sdr_12_(Vocals)_5_HP-Karaoke-UVR_(Reverb)_UVR-DeEcho-DeReverb.wav"))
-                                #os.remove(silk_path)
-                                os.remove(wav_path)
-                                os.remove(output_file_path)
-                                ctx.prevent_default()
-                            except:
-                                await ctx.event.query.adapter.reply_message(ctx.event.query.message_event, [(f"出错啦！ •᷄ࡇ•᷅")], False)
-                                ctx.prevent_default()
-                    else:
-                        self.ap.logger.info("提取音乐名称失败")
+                    self.ap.logger.info("提取音乐名称失败")
 
     @handler(PersonNormalMessageReceived)
     async def person_normal_message_received(self, ctx: EventContext, **kwargs):
@@ -235,172 +160,96 @@ class RVC_Music(BasePlugin):
                 # 确保目录存在
                 if not os.path.exists(dir_path):
                     os.makedirs(dir_path)
-                if os.path.exists(wav_path):
-                    await ctx.event.query.adapter.reply_message(ctx.event.query.message_event, [(f"正在学习 {music}......")], False)
-                    try:
-                        banzou_path, hesheng_path = self.UVR5(music)
-                        if not self.is_pcm_s16le(banzou_path):
-                            print(f"伴奏 不是 16 位 PCM 格式，正在转换...")
-                            output_path = os.path.splitext(banzou_path)[0] + "_16bit.wav"
-                            self.convert_to_pcm_s16le(banzou_path, output_path)
-                        if not self.is_pcm_s16le(hesheng_path):
-                            print(f"和声 不是 16 位 PCM 格式，正在转换...")
-                            output_path = os.path.splitext(hesheng_path)[0] + "_16bit.wav"
-                            self.convert_to_pcm_s16le(hesheng_path, output_path)
-                        music_path = os.path.join(dir_path, f'{music}_(Vocals)_model_bs_roformer_ep_368_sdr_12_(Vocals)_5_HP-Karaoke-UVR_(No Reverb)_UVR-DeEcho-DeReverb.wav')
-                        gansheng_path = self.send_request(model_name, music_path, music, int(f0up))
-                        if not self.is_pcm_s16le(gansheng_path):
-                            print(f"干声 不是 16 位 PCM 格式，正在转换...")
-                            output_path = os.path.splitext(gansheng_path)[0] + "_16bit.wav"
-                            self.convert_to_pcm_s16le(gansheng_path, output_path)
-                        # 加载干声
-                        dry_vocals = AudioSegment.from_wav(gansheng_path)
-                        dry_vocals = dry_vocals + 3
+                id, artists, music_name = self.get_music_id(music)
+                if id:
+                    msg, url = self.get_music(id)
+                    if msg != "success":
+                        self.ap.logger.info(f"{music_name} {artists}", msg)
+                        id, artists, music_name = self.get_music_id(music, 1)
+                        if id:
+                            msg, url = self.get_music(id)
+                    if url:
+                        music_name = music_name.replace('/', '&')
+                        music_name = music_name.replace('"', '_')
+                        music_name = music_name.replace("'", ' ')
+                        music_name = music_name.replace(":", ' ')
+                        music_name = music_name.replace("：", ' ')
+                        artists = artists.replace('/', '&')
+                        wav_path = self.download_audio(url, music_name, artists)
+                        await ctx.event.query.adapter.reply_message(ctx.event.query.message_event, [(f"正在学习 {music_name} {artists}......")], False)
+                        try:
+                            banzou_path, hesheng_path = self.UVR5(f"{music_name} {artists}")
+                            if not self.is_pcm_s16le(banzou_path):
+                                print(f"伴奏 不是 16 位 PCM 格式，正在转换...")
+                                output_path = os.path.splitext(banzou_path)[0] + "_16bit.wav"
+                                self.convert_to_pcm_s16le(banzou_path, output_path)
+                            if not self.is_pcm_s16le(hesheng_path):
+                                print(f"和声 不是 16 位 PCM 格式，正在转换...")
+                                output_path = os.path.splitext(hesheng_path)[0] + "_16bit.wav"
+                                self.convert_to_pcm_s16le(hesheng_path, output_path)
+                            dir_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "music")
+                            music_path = os.path.join(dir_path, f"{music_name} {artists}_(Vocals)_model_bs_roformer_ep_368_sdr_12_(Vocals)_5_HP-Karaoke-UVR_(No Reverb)_UVR-DeEcho-DeReverb.wav")
+                            gansheng_path = self.send_request(model_name, music_path, f"{music_name} {artists}", int(f0up))
+                            if not self.is_pcm_s16le(gansheng_path):
+                                print(f"干声 不是 16 位 PCM 格式，正在转换...")
+                                output_path = os.path.splitext(gansheng_path)[0] + "_16bit.wav"
+                                self.convert_to_pcm_s16le(gansheng_path, output_path)
+                            # 加载干声
+                            dry_vocals = AudioSegment.from_wav(gansheng_path)
+                            dry_vocals = dry_vocals + 3
 
-                        # 保存临时干声音频
-                        dry_vocals.export(os.path.join(dir_path, f'{music} dry_vocals_temp.wav'), format="wav")
-                        # 使用 ffmpeg 为干声增加混响效果
-                        subprocess.call([
-                            'ffmpeg', '-i', os.path.join(dir_path, f'{music} dry_vocals_temp.wav'),
-                            '-filter_complex', 'aecho=0.5:0.7:60:0.2',  # 混响参数
-                            os.path.join(dir_path, f'{music} dry_vocals_with_reverb.wav')
-                        ])
-                        # 衰减量：第一个参数（0.8）控制输入信号的衰减，通常设置得低一点会减少混响强度。
-                        # 回声衰减：第二个参数（0.88）控制回声信号的衰减，增大这个值可以减少混响的明显程度。
-                        # 延迟时间：第三个参数（60）是回声的延迟时间，可以根据需要保持不变或进行微调。
-                        # 反馈量：第四个参数（0.4）控制反馈强度，降低这个值会减弱混响效果。
+                            # 保存临时干声音频
+                            dry_vocals.export(os.path.join(dir_path, f'{music_name} {artists} dry_vocals_temp.wav'), format="wav")
 
-                        # 加载处理后的干声
-                        reverb_vocals = AudioSegment.from_wav(os.path.join(dir_path, f'{music} dry_vocals_with_reverb.wav'))
+                            # 使用 ffmpeg 为干声增加混响效果
+                            subprocess.call([
+                                'ffmpeg', '-i', os.path.join(dir_path, f'{music_name} {artists} dry_vocals_temp.wav'),
+                                '-filter_complex', 'aecho=0.5:0.7:60:0.2',  # 混响参数
+                                os.path.join(dir_path, f'{music_name} {artists} dry_vocals_with_reverb.wav')
+                            ])
+                            # 衰减量：第一个参数（0.8）控制输入信号的衰减，通常设置得低一点会减少混响强度。
+                            # 回声衰减：第二个参数（0.88）控制回声信号的衰减，增大这个值可以减少混响的明显程度。
+                            # 延迟时间：第三个参数（60）是回声的延迟时间，可以根据需要保持不变或进行微调。
+                            # 反馈量：第四个参数（0.4）控制反馈强度，降低这个值会减弱混响效果。
 
-                        # 加载伴奏和和声
-                        accompaniment = AudioSegment.from_wav(banzou_path)
-                        harmony = AudioSegment.from_wav(hesheng_path)
+                            # 加载处理后的干声
+                            reverb_vocals = AudioSegment.from_wav(os.path.join(dir_path, f'{music_name} {artists} dry_vocals_with_reverb.wav'))
 
-                        # 合并音轨
-                        combined = accompaniment.overlay(harmony).overlay(reverb_vocals)
-                        RVC_Music_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "RVC_Music")
-                        output_file_path = os.path.join(RVC_Music_path, f"{music}_{model_name}.wav")
-                        # 导出最终合成的歌曲
-                        combined.export(output_file_path, format="wav")
-                        if not self.is_pcm_s16le(output_file_path):
-                            print(f"伴奏 不是 16 位 PCM 格式，正在转换...")
-                            output_path = os.path.splitext(output_file_path)[0] + "_16bit.wav"
-                            self.convert_to_pcm_s16le(output_file_path, output_path)
+                            # 加载伴奏和和声
+                            accompaniment = AudioSegment.from_wav(banzou_path)
+                            harmony = AudioSegment.from_wav(hesheng_path)
 
-                        silk_path = self.convert_to_silk(model_name, output_file_path, music)
-                        ctx.add_return("reply", [Voice(path=str(silk_path))])
-                        # 删除临时文件
-                        os.remove(os.path.join(dir_path, f'{music} dry_vocals_temp.wav'))
-                        os.remove(os.path.join(dir_path, f'{music} dry_vocals_with_reverb.wav'))
-                        os.remove(gansheng_path)
-                        os.remove(hesheng_path)
-                        os.remove(banzou_path)
-                        os.remove(os.path.join(dir_path, f'{music}_(Vocals)_model_bs_roformer_ep_368_sdr_12.wav'))
-                        os.remove(os.path.join(dir_path,
-                                               f'{music}_(Vocals)_model_bs_roformer_ep_368_sdr_12_(Vocals)_5_HP-Karaoke-UVR.wav'))
-                        os.remove(os.path.join(dir_path,
-                                               f'{music}_(Vocals)_model_bs_roformer_ep_368_sdr_12_(Vocals)_5_HP-Karaoke-UVR_(No Reverb)_UVR-DeEcho-DeReverb.wav'))
-                        os.remove(os.path.join(dir_path,
-                                               f'{music}_(Vocals)_model_bs_roformer_ep_368_sdr_12_(Vocals)_5_HP-Karaoke-UVR_(Reverb)_UVR-DeEcho-DeReverb.wav'))
-                        #os.remove(silk_path)
-                        os.remove(wav_path)
-                        os.remove(output_file_path)
-                        ctx.prevent_default()
-                    except:
-                        await ctx.event.query.adapter.reply_message(ctx.event.query.message_event, [(f"出错啦！ •᷄ࡇ•᷅")], False)
-                        ctx.prevent_default()
+                            # 合并音轨
+                            combined = accompaniment.overlay(harmony).overlay(reverb_vocals)
+                            RVC_Music_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "RVC_Music")
+                            output_file_path = os.path.join(RVC_Music_path, f"{music_name} {artists}_{model_name}.wav")
+                            # 导出最终合成的歌曲
+                            combined.export(output_file_path, format="wav")
+                            if not self.is_pcm_s16le(output_file_path):
+                                print(f"伴奏 不是 16 位 PCM 格式，正在转换...")
+                                output_path = os.path.splitext(output_file_path)[0] + "_16bit.wav"
+                                self.convert_to_pcm_s16le(output_file_path, output_path)
+                            silk_path = self.convert_to_silk(model_name, output_file_path, f"{music_name} {artists}")
+                            ctx.add_return("reply", [Voice(path=str(silk_path))])
+                            # 删除临时文件
+                            os.remove(os.path.join(dir_path, f'{music_name} {artists} dry_vocals_temp.wav'))
+                            os.remove(os.path.join(dir_path, f'{music_name} {artists} dry_vocals_with_reverb.wav'))
+                            os.remove(gansheng_path)
+                            os.remove(hesheng_path)
+                            os.remove(banzou_path)
+                            os.remove(os.path.join(dir_path, fr"{music_name} {artists}_(Vocals)_model_bs_roformer_ep_368_sdr_12.wav"))
+                            os.remove(os.path.join(dir_path, fr"{music_name} {artists}_(Vocals)_model_bs_roformer_ep_368_sdr_12_(Vocals)_5_HP-Karaoke-UVR.wav"))
+                            os.remove(os.path.join(dir_path, fr"{music_name} {artists}_(Vocals)_model_bs_roformer_ep_368_sdr_12_(Vocals)_5_HP-Karaoke-UVR_(No Reverb)_UVR-DeEcho-DeReverb.wav"))
+                            os.remove(os.path.join(dir_path, fr"{music_name} {artists}_(Vocals)_model_bs_roformer_ep_368_sdr_12_(Vocals)_5_HP-Karaoke-UVR_(Reverb)_UVR-DeEcho-DeReverb.wav"))
+                            #os.remove(silk_path)
+                            os.remove(wav_path)
+                            os.remove(output_file_path)
+                            ctx.prevent_default()
+                        except:
+                            await ctx.event.query.adapter.reply_message(ctx.event.query.message_event, [(f"出错啦！ •᷄ࡇ•᷅")], False)
+                            ctx.prevent_default()
                 else:
-                    id, artists, music_name = self.get_music_id(music)
-                    if id:
-                        msg, url = self.get_music(id)
-                        if msg != "success":
-                            self.ap.logger.info(f"{music_name} {artists}", msg)
-                            id, artists, music_name = self.get_music_id(music, 1)
-                            if id:
-                                msg, url = self.get_music(id)
-                        if url:
-                            music_name = music_name.replace('/', '&')
-                            music_name = music_name.replace('"', '_')
-                            music_name = music_name.replace("'", ' ')
-                            music_name = music_name.replace(":", ' ')
-                            music_name = music_name.replace("：", ' ')
-                            artists = artists.replace('/', '&')
-                            wav_path = self.download_audio(url, music_name, artists)
-                            await ctx.event.query.adapter.reply_message(ctx.event.query.message_event, [(f"正在学习 {music_name} {artists}......")], False)
-                            try:
-                                banzou_path, hesheng_path = self.UVR5(f"{music_name} {artists}")
-                                if not self.is_pcm_s16le(banzou_path):
-                                    print(f"伴奏 不是 16 位 PCM 格式，正在转换...")
-                                    output_path = os.path.splitext(banzou_path)[0] + "_16bit.wav"
-                                    self.convert_to_pcm_s16le(banzou_path, output_path)
-                                if not self.is_pcm_s16le(hesheng_path):
-                                    print(f"和声 不是 16 位 PCM 格式，正在转换...")
-                                    output_path = os.path.splitext(hesheng_path)[0] + "_16bit.wav"
-                                    self.convert_to_pcm_s16le(hesheng_path, output_path)
-                                dir_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "music")
-                                music_path = os.path.join(dir_path, f"{music_name} {artists}_(Vocals)_model_bs_roformer_ep_368_sdr_12_(Vocals)_5_HP-Karaoke-UVR_(No Reverb)_UVR-DeEcho-DeReverb.wav")
-                                gansheng_path = self.send_request(model_name, music_path, f"{music_name} {artists}", int(f0up))
-                                if not self.is_pcm_s16le(gansheng_path):
-                                    print(f"干声 不是 16 位 PCM 格式，正在转换...")
-                                    output_path = os.path.splitext(gansheng_path)[0] + "_16bit.wav"
-                                    self.convert_to_pcm_s16le(gansheng_path, output_path)
-                                # 加载干声
-                                dry_vocals = AudioSegment.from_wav(gansheng_path)
-                                dry_vocals = dry_vocals + 3
-
-                                # 保存临时干声音频
-                                dry_vocals.export(os.path.join(dir_path, f'{music_name} {artists} dry_vocals_temp.wav'), format="wav")
-
-                                # 使用 ffmpeg 为干声增加混响效果
-                                subprocess.call([
-                                    'ffmpeg', '-i', os.path.join(dir_path, f'{music_name} {artists} dry_vocals_temp.wav'),
-                                    '-filter_complex', 'aecho=0.5:0.7:60:0.2',  # 混响参数
-                                    os.path.join(dir_path, f'{music_name} {artists} dry_vocals_with_reverb.wav')
-                                ])
-                                # 衰减量：第一个参数（0.8）控制输入信号的衰减，通常设置得低一点会减少混响强度。
-                                # 回声衰减：第二个参数（0.88）控制回声信号的衰减，增大这个值可以减少混响的明显程度。
-                                # 延迟时间：第三个参数（60）是回声的延迟时间，可以根据需要保持不变或进行微调。
-                                # 反馈量：第四个参数（0.4）控制反馈强度，降低这个值会减弱混响效果。
-
-                                # 加载处理后的干声
-                                reverb_vocals = AudioSegment.from_wav(os.path.join(dir_path, f'{music_name} {artists} dry_vocals_with_reverb.wav'))
-
-                                # 加载伴奏和和声
-                                accompaniment = AudioSegment.from_wav(banzou_path)
-                                harmony = AudioSegment.from_wav(hesheng_path)
-
-                                # 合并音轨
-                                combined = accompaniment.overlay(harmony).overlay(reverb_vocals)
-                                RVC_Music_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "RVC_Music")
-                                output_file_path = os.path.join(RVC_Music_path, f"{music_name} {artists}_{model_name}.wav")
-                                # 导出最终合成的歌曲
-                                combined.export(output_file_path, format="wav")
-                                if not self.is_pcm_s16le(output_file_path):
-                                    print(f"伴奏 不是 16 位 PCM 格式，正在转换...")
-                                    output_path = os.path.splitext(output_file_path)[0] + "_16bit.wav"
-                                    self.convert_to_pcm_s16le(output_file_path, output_path)
-                                silk_path = self.convert_to_silk(model_name, output_file_path, f"{music_name} {artists}")
-                                ctx.add_return("reply", [Voice(path=str(silk_path))])
-                                # 删除临时文件
-                                os.remove(os.path.join(dir_path, f'{music_name} {artists} dry_vocals_temp.wav'))
-                                os.remove(os.path.join(dir_path, f'{music_name} {artists} dry_vocals_with_reverb.wav'))
-                                os.remove(gansheng_path)
-                                os.remove(hesheng_path)
-                                os.remove(banzou_path)
-                                os.remove(os.path.join(dir_path, fr"{music_name} {artists}_(Vocals)_model_bs_roformer_ep_368_sdr_12.wav"))
-                                os.remove(os.path.join(dir_path, fr"{music_name} {artists}_(Vocals)_model_bs_roformer_ep_368_sdr_12_(Vocals)_5_HP-Karaoke-UVR.wav"))
-                                os.remove(os.path.join(dir_path, fr"{music_name} {artists}_(Vocals)_model_bs_roformer_ep_368_sdr_12_(Vocals)_5_HP-Karaoke-UVR_(No Reverb)_UVR-DeEcho-DeReverb.wav"))
-                                os.remove(os.path.join(dir_path, fr"{music_name} {artists}_(Vocals)_model_bs_roformer_ep_368_sdr_12_(Vocals)_5_HP-Karaoke-UVR_(Reverb)_UVR-DeEcho-DeReverb.wav"))
-                                #os.remove(silk_path)
-                                os.remove(wav_path)
-                                os.remove(output_file_path)
-                                ctx.prevent_default()
-                            except:
-                                await ctx.event.query.adapter.reply_message(ctx.event.query.message_event, [(f"出错啦！ •᷄ࡇ•᷅")], False)
-                                ctx.prevent_default()
-                    else:
-                        self.ap.logger.info("提取音乐名称失败")
+                    self.ap.logger.info("提取音乐名称失败")
 
 
     def get_music_id(self, music_name, i=0):
