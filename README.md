@@ -23,7 +23,7 @@
 ```
 token = 'YOURTOKEN'  # 请将这里的'YOUR_TOKEN'替换为你实际获取的token
 cookie = "YOUR_COOKIE"  # 请将这里的'YOUR_COOKIE'替换为你实际获取的cookie
-RVC_logs_path = "F:\RVC\RVC1006Nvidia\logs"  # 请将这里的"F:\RVC\RVC1006Nvidia\logs"替换为你部署的RVC项目的logs文件夹的路径
+RVC_logs_path = r"F:\RVC\RVC1006Nvidia\logs"  # 请将这里的"F:\RVC\RVC1006Nvidia\logs"替换为你部署的RVC项目的logs文件夹的路径
 ```
 
 另外main.py中的cookie为你网易云音乐的cookie，如果没有请将其设为空，若设为空一些vip歌曲可能只能获取30秒  
