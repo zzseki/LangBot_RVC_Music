@@ -26,14 +26,18 @@ RVC_logs_path = "F:\RVC\RVC1006Nvidia\logs"  # 请将这里的"F:\RVC\RVC1006Nvi
 ```
 
 另外main.py中的cookie为你网易云音乐的cookie，如果没有请将其设为空，若设为空一些vip歌曲可能只能获取30秒  
+
 只能获取网易云音乐上有的音乐  
+
 tmp文件夹下为UVR的模型文件，文件大小较大，下载较慢请耐心等待，在首次使用时也会自动下载，但需要魔法  
 
 ## 注意
 
 请检查RVC项目中"\assets\weights"中的模型文件名称xxx.pth和".\logs\xxx\added_abcdefg1234.index"中xxx的名称相同且index文件必须放在".\logs\xxx\"目录下  
 
-变声前需要用UVR模型对音频去伴奏和混响，依赖电脑性能，速度过慢或爆显存可以适当修改main.py中的batch_size大小，本人3070 8G显存 现在的batch_size大小刚好合适，大家可以做参考去调节。去伴奏过程慢调节new_mdx_params中的batch_size。去和声或去混响过程慢调节new_vr_params中的batch_size
+变声前需要用UVR模型对音频去伴奏和混响，依赖电脑性能，速度过慢或爆显存可以适当修改main.py中的batch_size大小，本人3070 8G显存 现在的batch_size大小刚好合适，大家可以做参考去调节。  
+
+去伴奏过程慢调节new_mdx_params中的batch_size。去和声或去混响过程慢调节new_vr_params中的batch_size
 ```
 new_mdx_params = {"hop_length": 1024, "segment_size": 256, "overlap": 8, "batch_size": 8, "enable_denoise": False}
 new_vr_params = {"batch_size": 8, "window_size": 512, "aggression": 5, "enable_tta": False, "enable_post_process": False, "post_process_threshold": 0.2, "high_end_process": False}
@@ -51,6 +55,8 @@ number 为音调的变化，如果原歌曲为男声，模型为女声，则numb
 
 model_name 为RVC的模型名称，即 "xxx.pth和logs\xxx\.index文件" 中的xxx  
 
-注意：#学习翻唱和三个'[]'不可缺少   
+注意：#学习翻唱和三个'[]'不可缺少    
+
 整个过程需要几分钟请耐心等待   
+
 ![示例图片](https://github.com/zzseki/LangBot_RVC_Music/blob/main/tmp/F3595CB91817E2991F59C356AD573638.jpg)
