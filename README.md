@@ -11,6 +11,7 @@
 需要先部署[RVC变声器项目](https://github.com/RVC-Project/Retrieval-based-Voice-Conversion-WebUI)，这里不做介绍  
 
 将"rvc_fastapi.py"和"开启接口服务.bat"文件放到RVC项目的主目录下，使用前需要先双击打开"开启接口服务.bat"文件  
+
 需要下载安装ffmpeg   
 
 前往https://www.alapi.cn/  进行注册（截至上传时是免费的）
