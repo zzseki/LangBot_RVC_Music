@@ -40,8 +40,8 @@ RVC_logs_path = r"F:\RVC\RVC1006Nvidia\logs"  # 请将这里的"F:\RVC\RVC1006Nv
 
    去伴奏过程慢调节new_mdx_params中的batch_size。去和声或去混响过程慢调节new_vr_params中的batch_size
 ```
-new_mdx_params = {"hop_length": 1024, "segment_size": 256, "overlap": 8, "batch_size": 4, "enable_denoise": False}
-new_vr_params = {"batch_size": 4, "window_size": 512, "aggression": 5, "enable_tta": False, "enable_post_process": False, "post_process_threshold": 0.2, "high_end_process": False}
+new_mdx_params = {"hop_length": 1024, "segment_size": 256, "overlap": 8, "batch_size": 2, "enable_denoise": False}
+new_vr_params = {"batch_size": 2, "window_size": 512, "aggression": 5, "enable_tta": False, "enable_post_process": False, "post_process_threshold": 0.2, "high_end_process": False}
 ```
 
 ## 配置GPT
@@ -58,6 +58,6 @@ model_name 为RVC的模型名称，即 "xxx.pth和logs\xxx\.index文件" 中的x
 
 注意：#学习翻唱和三个'[]'不可缺少    
 
-整个过程需要几分钟请耐心等待，实测下来3070 8G显存完整处理一首歌约5分钟   
+整个过程需要几分钟请耐心等待，实测下来3070 8G显存完整处理一首歌约2、3分钟   
 
 ![示例图片](https://github.com/zzseki/LangBot_RVC_Music/blob/main/tmp/F3595CB91817E2991F59C356AD573638.jpg)
