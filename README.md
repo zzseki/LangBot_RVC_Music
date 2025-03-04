@@ -58,6 +58,6 @@ model_name 为RVC的模型名称，即 "xxx.pth和logs\xxx\.index文件" 中的x
 
 注意：#学习翻唱和三个'[]'不可缺少    
 
-整个过程需要几分钟请耐心等待，实测下来3070 8G显存完整处理一首歌约2、3分钟   
+整个过程需要几分钟请耐心等待，实测下来3070 8G显存完整处理一首歌约2分钟   
 
 ![示例图片](https://github.com/zzseki/LangBot_RVC_Music/blob/main/tmp/F3595CB91817E2991F59C356AD573638.jpg)
